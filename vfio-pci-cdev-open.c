@@ -33,6 +33,7 @@ int main(int argc, char **argv)
 	struct vfio_device_info device_info;
 
 	struct vfio_region_info region_info;
+	struct vfio_iommu_type1_info info_cmd = {};
 
 	struct vfio_device_bind_iommufd bind = {
         .argsz = sizeof(bind),
@@ -94,9 +95,10 @@ struct iommu_ioas_map map = {
 iommufd = open("/dev/iommu", O_RDWR);
 
 bind.iommufd = iommufd;
-ioctl(cdev_fd, VFIO_DEVICE_BIND_IOMMUFD, &bind);
+ret = ioctl(cdev_fd, VFIO_DEVICE_BIND_IOMMUFD, &bind);
 
-printf("VFIO_DEVICE_BIND_IOMMUFD  %d\n", bind);
+printf("VFIO_DEVICE_BIND_IOMMUFD return %d \n bind.flags 0x%X, bind.argsz %d, bind.iommufd %d, bind.out_devid 0x%X\n",
+	       	ret, bind.flags, bind.argsz, bind.iommufd, bind.out_devid);
 ioctl(iommufd, IOMMU_IOAS_ALLOC, &alloc_data);
 attach_data.pt_id = alloc_data.out_ioas_id;
 ioctl(cdev_fd, VFIO_DEVICE_ATTACH_IOMMUFD_PT, &attach_data);
@@ -110,10 +112,12 @@ map.ioas_id = alloc_data.out_ioas_id;
 
 ioctl(iommufd, IOMMU_IOAS_MAP, &map);
 
-
+ret = ioctl(iommufd, VFIO_CHECK_EXTENSION, VFIO_TYPE1v2_IOMMU);
+printf("VFIO_CHECK_EXTENSION ret =%d ",ret );
 
 	if (ioctl(cdev_fd, VFIO_DEVICE_GET_INFO, &device_info)) {
-		printf("Failed to get device info\n");
+		perror("get device info " );
+		printf("Failed to get device info \n");
 		return -1;
 	}
 
