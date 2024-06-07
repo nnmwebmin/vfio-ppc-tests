@@ -85,7 +85,7 @@ struct iommu_ioas_map map = {
 
 	snprintf(path, sizeof(path), "/dev/vfio/%d", groupid);
 	
-	cdev_fd = open("/dev/vfio/devices/vfio0", O_RDWR);
+	cdev_fd = open("/dev/vfio/devices/vfio1", O_RDWR);
 	if (cdev_fd < 0) {
 		printf("Failed to open %s, %d (%s)\n",
 		       path, group, strerror(errno));
@@ -113,9 +113,9 @@ map.ioas_id = alloc_data.out_ioas_id;
 ioctl(iommufd, IOMMU_IOAS_MAP, &map);
 
 ret = ioctl(iommufd, VFIO_CHECK_EXTENSION, VFIO_TYPE1v2_IOMMU);
-printf("VFIO_CHECK_EXTENSION ret =%d ",ret );
+printf("VFIO_CHECK_EXTENSION ret =%d \n",ret );
 
-	if (ioctl(cdev_fd, VFIO_DEVICE_GET_INFO, &device_info)) {
+	if (ioctl(bind.out_devid, VFIO_DEVICE_GET_INFO, &device_info)) {
 		perror("get device info " );
 		printf("Failed to get device info \n");
 		return -1;
