@@ -105,7 +105,7 @@ uint64_t buf[buf_size] = {};
 	}
 
 iommufd = open("/dev/iommu", O_RDWR);
-
+perror("open iommufd ");
 bind.iommufd = iommufd;
 ret = ioctl(cdev_fd, VFIO_DEVICE_BIND_IOMMUFD, &bind);
 perror("VFIO_DEVICE_BIND_IOMMUFD \n");
@@ -138,7 +138,7 @@ printf("IOMMU_IOAS_MAP success");
 
 getchar();
 
-ret = ioctl(iommufd, VFIO_CHECK_EXTENSION, VFIO_TYPE1v2_IOMMU);
+ret = ioctl(iommufd, VFIO_CHECK_EXTENSION, VFIO_SPAPR_TCE_v2_IOMMU);
 printf("VFIO_CHECK_EXTENSION ret =%d \n",ret );
 
 	ret = ioctl(cdev_fd, VFIO_DEVICE_GET_INFO, &device_info);
