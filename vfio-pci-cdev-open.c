@@ -13,10 +13,13 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/vfs.h>
+#include <stdint.h>
 
 #include <linux/iommufd.h>
 #include <linux/vfio.h>
 #include <linux/ioctl.h>
+#include <errno.h>
+
 
 void usage(char *name)
 {
@@ -28,11 +31,17 @@ int main(int argc, char **argv)
 	int i, ret, container, group, device, groupid, cdev_fd, iommufd;
 	char path[PATH_MAX];
 	int seg, bus, dev, func;
+	unsigned long config_offset;
+	char  vid[9];
 
 	struct vfio_group_status group_status;
-	struct vfio_device_info device_info;
+	struct vfio_device_info device_info = { 
+		.argsz = sizeof(device_info) };
 
-	struct vfio_region_info region_info;
+
+	struct vfio_region_info region_info = {
+		.argsz = sizeof(region_info)
+	};
 	struct vfio_iommu_type1_info info_cmd = {};
 
 	struct vfio_device_bind_iommufd bind = {
@@ -54,6 +63,9 @@ struct iommu_ioas_map map = {
                  IOMMU_IOAS_MAP_FIXED_IOVA,
         .__reserved = 0,
 };
+int buf_size = ( (sizeof(struct vfio_device_feature)+ sizeof(uint64_t) -1 ) /sizeof(uint64_t));
+printf("buf size %d \n",buf_size);
+uint64_t buf[buf_size] = {};
 
 
 	if (argc < 3) {
@@ -85,7 +97,7 @@ struct iommu_ioas_map map = {
 
 	snprintf(path, sizeof(path), "/dev/vfio/%d", groupid);
 	
-	cdev_fd = open("/dev/vfio/devices/vfio1", O_RDWR);
+	cdev_fd = open("/dev/vfio/devices/vfio0", O_RDWR);
 	if (cdev_fd < 0) {
 		printf("Failed to open %s, %d (%s)\n",
 		       path, group, strerror(errno));
@@ -96,12 +108,20 @@ iommufd = open("/dev/iommu", O_RDWR);
 
 bind.iommufd = iommufd;
 ret = ioctl(cdev_fd, VFIO_DEVICE_BIND_IOMMUFD, &bind);
-
+perror("VFIO_DEVICE_BIND_IOMMUFD \n");
 printf("VFIO_DEVICE_BIND_IOMMUFD return %d \n bind.flags 0x%X, bind.argsz %d, bind.iommufd %d, bind.out_devid 0x%X\n",
 	       	ret, bind.flags, bind.argsz, bind.iommufd, bind.out_devid);
 ioctl(iommufd, IOMMU_IOAS_ALLOC, &alloc_data);
 attach_data.pt_id = alloc_data.out_ioas_id;
 ioctl(cdev_fd, VFIO_DEVICE_ATTACH_IOMMUFD_PT, &attach_data);
+perror("VFIO_DEVICE_ATTACH_IOMMUFD_PT");
+
+struct vfio_device_feature *feature = (struct vfio_device_feature *)buf;
+feature->argsz = sizeof(buf);
+
+ feature->flags = VFIO_DEVICE_FEATURE_SET |
+                     VFIO_DEVICE_FEATURE_DMA_LOGGING_STOP;
+
 
 /* Allocate some space and setup a DMA mapping */
 map.user_va = (int64_t)mmap(0, 1024 * 1024, PROT_READ | PROT_WRITE,
@@ -110,14 +130,21 @@ map.iova = 0; /* 1MB starting at 0x0 from device view */
 map.length = 1024 * 1024;
 map.ioas_id = alloc_data.out_ioas_id;
 
-ioctl(iommufd, IOMMU_IOAS_MAP, &map);
+if(ioctl(iommufd, IOMMU_IOAS_MAP, &map)) {
+	perror("IOMMU_IOAS_MAP :");
+}
+else 
+printf("IOMMU_IOAS_MAP success");
+
+getchar();
 
 ret = ioctl(iommufd, VFIO_CHECK_EXTENSION, VFIO_TYPE1v2_IOMMU);
 printf("VFIO_CHECK_EXTENSION ret =%d \n",ret );
 
-	if (ioctl(bind.out_devid, VFIO_DEVICE_GET_INFO, &device_info)) {
+	ret = ioctl(cdev_fd, VFIO_DEVICE_GET_INFO, &device_info);
+	if(ret <0) {
 		perror("get device info " );
-		printf("Failed to get device info \n");
+		printf("Failed to get device info %d error no %d\n", ret, errno);
 		return -1;
 	}
 
@@ -125,16 +152,22 @@ printf("VFIO_CHECK_EXTENSION ret =%d \n",ret );
 	       device_info.num_regions, device_info.num_irqs);
 
 	for (i = 0; i < device_info.num_regions; i++) {
+		struct vfio_region_info *info;
 		printf("Region %d: ", i);
-		region_info.index = i;
-		if (ioctl(device, VFIO_DEVICE_GET_REGION_INFO, &region_info)) {
-			printf("Failed to get info\n");
+		info = &region_info;
+		info->index = i;
+		if (ioctl(cdev_fd, VFIO_DEVICE_GET_REGION_INFO, info)) {
+			printf("Failed to get info errno = %d\n",errno);
+			perror("Failed to get info :");
 			continue;
 		}
 
 		printf("size 0x%lx, offset 0x%lx, flags 0x%x\n",
 		       (unsigned long)region_info.size,
 		       (unsigned long)region_info.offset, region_info.flags);
+		if( info->index == VFIO_PCI_CONFIG_REGION_INDEX)
+			config_offset = (unsigned long)region_info.offset;		
+
 		if (region_info.flags & VFIO_REGION_INFO_FLAG_MMAP) {
 			void *map = mmap(NULL, (size_t)region_info.size,
 					 PROT_READ, MAP_SHARED, device,
@@ -151,6 +184,12 @@ printf("VFIO_CHECK_EXTENSION ret =%d \n",ret );
 			munmap(map, (size_t)region_info.size);
 		}
 	}
+pread (cdev_fd, vid,4, config_offset); 
+printf("vid %X", *(unsigned long *)vid);
+
+if (ioctl(cdev_fd, VFIO_DEVICE_FEATURE, feature)) {
+perror("VFIO_DEVICE_FEATURE ");
+}
 
 	printf("Success\n");
 	//printf("Press any key to exit\n");
