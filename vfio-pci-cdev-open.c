@@ -162,11 +162,11 @@ printf("VFIO_CHECK_EXTENSION ret =%d \n",ret );
 			continue;
 		}
 
-		printf("size 0x%lx, offset 0x%lx, flags 0x%x\n",
+		printf("size 0x%lx, offset 0x%lx, flags 0b%0b\n",
 		       (unsigned long)region_info.size,
 		       (unsigned long)region_info.offset, region_info.flags);
 		if( info->index == VFIO_PCI_CONFIG_REGION_INDEX)
-			config_offset = (unsigned long)region_info.offset;		
+			config_offset = (unsigned long)region_info.offset;
 
 		if (region_info.flags & VFIO_REGION_INFO_FLAG_MMAP) {
 			void *map = mmap(NULL, (size_t)region_info.size,
@@ -175,6 +175,8 @@ printf("VFIO_CHECK_EXTENSION ret =%d \n",ret );
 			if (map == MAP_FAILED) {
 				printf("mmap failed\n");
 				continue;
+			}else {
+				printf("mapping of region %d success\n", i);
 			}
 
 			printf("[");
