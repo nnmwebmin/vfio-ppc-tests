@@ -63,6 +63,12 @@ struct iommu_ioas_map map = {
                  IOMMU_IOAS_MAP_FIXED_IOVA,
         .__reserved = 0,
 };
+ 	struct vfio_iommu_spapr_register_memory reg = {          
+                .argsz = sizeof(reg),                                           
+                .flags = 0                                                      
+        }; 
+
+
 int buf_size = ( (sizeof(struct vfio_device_feature)+ sizeof(uint64_t) -1 ) /sizeof(uint64_t));
 printf("buf size %d \n",buf_size);
 uint64_t buf[buf_size] = {};
@@ -96,7 +102,7 @@ uint64_t buf[buf_size] = {};
 	}
 
 	snprintf(path, sizeof(path), "/dev/vfio/%d", groupid);
-	
+
 	cdev_fd = open("/dev/vfio/devices/vfio0", O_RDWR);
 	if (cdev_fd < 0) {
 		printf("Failed to open %s, %d (%s)\n",
@@ -129,6 +135,17 @@ map.user_va = (int64_t)mmap(0, 1024 * 1024, PROT_READ | PROT_WRITE,
 map.iova = 0; /* 1MB starting at 0x0 from device view */
 map.length = 1024 * 1024;
 map.ioas_id = alloc_data.out_ioas_id;
+
+
+#ifdef __PPC64__
+                        reg.vaddr = map.user_va;
+                        reg.size = map.length;
+                        reg.flags = 0;
+                        if (ioctl(iommufd, VFIO_IOMMU_SPAPR_REGISTER_MEMORY, &reg)) {
+                                perror("Set iommu register memory failed\n");
+                        //        return -1;
+                        }
+#endif
 
 if(ioctl(iommufd, IOMMU_IOAS_MAP, &map)) {
 	perror("IOMMU_IOAS_MAP :");
