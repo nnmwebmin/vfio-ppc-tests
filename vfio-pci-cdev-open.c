@@ -118,6 +118,7 @@ perror("VFIO_DEVICE_BIND_IOMMUFD \n");
 printf("VFIO_DEVICE_BIND_IOMMUFD return %d \n bind.flags 0x%X, bind.argsz %d, bind.iommufd %d, bind.out_devid 0x%X\n",
 	       	ret, bind.flags, bind.argsz, bind.iommufd, bind.out_devid);
 ioctl(iommufd, IOMMU_IOAS_ALLOC, &alloc_data);
+perror("IOMMU_IOAS_ALLOC ");
 attach_data.pt_id = alloc_data.out_ioas_id;
 ioctl(cdev_fd, VFIO_DEVICE_ATTACH_IOMMUFD_PT, &attach_data);
 perror("VFIO_DEVICE_ATTACH_IOMMUFD_PT");
